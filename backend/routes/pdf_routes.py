@@ -1,51 +1,46 @@
 from fastapi import APIRouter, UploadFile, File
-from typing import List
-
 from services.pdf_service import extract_text_from_pdf
-from services.embedding_service import create_embeddings
-from services.unified_store import UNIFIED_STORE
+
+from services.embedding_service import (
+    create_embeddings,
+    search_similar_chunks,
+    update_conversation_history,
+    get_recent_context,
+    generate_answer_from_chunks
+)
 
 router = APIRouter()
 
 
-@router.post("/upload-pdfs")
-async def upload_pdfs(files: List[UploadFile] = File(...)):
+@router.post("/chat")
+async def chat_with_documents(request: dict):
 
-    uploaded_files = []
+    question = request["question"]
 
-    for file in files:
+    print("Received question:", question)
 
-        # extract text
-        text = extract_text_from_pdf(file)
+    relevant_chunks = search_similar_chunks(question)
 
-        # create embeddings
-        create_embeddings(text)
+    print("Relevant chunks:", relevant_chunks)
 
-        # split into chunks
-        chunks = text.split("\n")
+    if not relevant_chunks:
+        return {
+            "question": question,
+            "answer": "No relevant information found in uploaded documents.",
+            "context_used": []
+        }
 
-        for chunk in chunks:
+    previous_context = get_recent_context()
 
-            if chunk.strip():
+    answer = generate_answer_from_chunks(relevant_chunks)
 
-                data = {
-                    "source_type": "pdf",
-                    "source_id": file.filename,
-                    "content": chunk,
-                    "metadata": {
-                        "page": None
-                    }
-                }
+    print("Generated answer:", answer)
 
-                UNIFIED_STORE.append(data)
-
-                print("Stored chunk:", data)
-
-        uploaded_files.append(file.filename)
-
-    print("TOTAL STORED CHUNKS:", len(UNIFIED_STORE))
+    update_conversation_history(question, answer)
 
     return {
-        "message": "PDF upload successful",
-        "files": uploaded_files
+        "question": question,
+        "previous_context": previous_context,
+        "answer": answer,
+        "context_used": relevant_chunks
     }
