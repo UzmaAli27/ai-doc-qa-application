@@ -32,7 +32,17 @@ async def ask_question(request: QuestionRequest):
 
     print("Generated answer:", answer)
 
+    # clean sources for frontend
+    sources = [
+        {
+            "file": r["source_id"],
+            "type": r["source_type"],
+            "metadata": r["metadata"]
+        }
+        for r in results[:5]
+    ]
+
     return {
         "answer": answer,
-        "sources": results
+        "sources": sources
     }
